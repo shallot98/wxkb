@@ -54,6 +54,8 @@
 
 📖 **详细教程**: 查看 [GITHUB_ACTIONS_GUIDE.md](GITHUB_ACTIONS_GUIDE.md)
 
+> **⚠️ 构建卡住问题？** 老王已经修复了！查看 [BUILD_FIX.md](BUILD_FIX.md) 了解详情。
+
 ### 方法2：通过Cydia/Sileo安装
 1. 添加老王的源（如果有的话）
 2. 搜索"WXKBTweak"
