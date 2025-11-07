@@ -30,11 +30,46 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-theos-
 
-      - name: Setup Theos environment
+      - name: Install dependencies
+        run: |
+          brew install ldid
+
+      - name: Setup Theos
         timeout-minutes: 15
-        uses: Randomblock1/theos-action@v1
-        with:
-          theos-sdks: iPhoneOS16.5.sdk
+        run: |
+          echo "Setting up Theos..."
+          
+          # Set Theos path
+          THEOS_PATH="${{ github.workspace }}/theos"
+          echo "THEOS=$THEOS_PATH" >> $GITHUB_ENV
+          
+          # Check if Theos is already cached
+          if [ -d "$THEOS_PATH" ]; then
+            echo "✅ Theos found in cache"
+          else
+            echo "📥 Installing Theos from scratch..."
+            git clone --recursive https://github.com/theos/theos.git "$THEOS_PATH"
+          fi
+
+      - name: Download and install iOS SDK
+        timeout-minutes: 10
+        run: |
+          echo "Downloading iOS SDK..."
+          cd $THEOS/sdks
+          
+          # Check if SDK already exists
+          if [ -d "iPhoneOS16.5.sdk" ]; then
+            echo "✅ SDK found in cache"
+          else
+            echo "📥 Downloading iOS 16.5 SDK..."
+            curl -LO https://github.com/theos/sdks/archive/master.zip
+            unzip -q master.zip
+            mv sdks-master/* .
+            rm -rf sdks-master master.zip
+          fi
+          
+          ls -la
+          echo "✅ SDK installation completed"
 
       - name: Verify Theos installation
         run: |
