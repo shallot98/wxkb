@@ -1,6 +1,6 @@
 Package: com.laowang.wxkbtweak
 Name: WXKBTweak - 微信输入法增强
-Version: 2.0.1
+Version: 3.0.0
 Architecture: iphoneos-arm64
 Description: 微信输入法增强插件 - 支持上下滑动切换中英文输入
  功能特性：
