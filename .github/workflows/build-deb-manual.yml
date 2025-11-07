@@ -1,16 +1,11 @@
-name: Build Rootless DEB
+name: Build Rootless DEB (Manual Theos Setup)
 
 on:
-  push:
-    branches: [ main, master ]
-    tags: [ 'v*' ]
-  pull_request:
-    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
   build:
-    name: Build DEB for arm64 & arm64e
+    name: Build DEB with Manual Theos Setup
     runs-on: macos-14
     timeout-minutes: 30
     
@@ -20,33 +15,69 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Cache Theos
+      - name: Cache Theos and SDKs
         uses: actions/cache@v4
         with:
           path: |
-            ${{ github.workspace }}/theos
-            ~/Library/Caches/Homebrew
-          key: ${{ runner.os }}-theos-${{ hashFiles('**/Makefile') }}
+            /opt/theos
+            ~/theos
+          key: ${{ runner.os }}-theos-manual-${{ hashFiles('**/Makefile') }}
           restore-keys: |
-            ${{ runner.os }}-theos-
+            ${{ runner.os }}-theos-manual-
 
-      - name: Setup Theos environment
+      - name: Install Theos manually
         timeout-minutes: 15
-        uses: Randomblock1/theos-action@v1
-        with:
-          theos-sdks: iPhoneOS16.5.sdk
+        run: |
+          echo "Installing Theos manually..."
+          
+          # Check if Theos is already cached
+          if [ -d "/opt/theos" ]; then
+            echo "✅ Theos found in cache"
+            export THEOS=/opt/theos
+          else
+            echo "📥 Installing Theos from scratch..."
+            sudo mkdir -p /opt/theos
+            sudo chown -R $(whoami):staff /opt/theos
+            
+            # Clone Theos
+            git clone --recursive https://github.com/theos/theos.git /opt/theos
+            export THEOS=/opt/theos
+          fi
+          
+          echo "THEOS=/opt/theos" >> $GITHUB_ENV
+          echo "PATH=/opt/theos/bin:$PATH" >> $GITHUB_ENV
+
+      - name: Download and install iOS SDK
+        timeout-minutes: 10
+        run: |
+          echo "Downloading iOS SDK..."
+          cd $THEOS/sdks
+          
+          # Check if SDK already exists
+          if [ -d "iPhoneOS16.5.sdk" ]; then
+            echo "✅ SDK found in cache"
+          else
+            # Download iOS 16.5 SDK
+            curl -LO https://github.com/theos/sdks/archive/master.zip
+            unzip -q master.zip
+            mv sdks-master/* .
+            rm -rf sdks-master master.zip
+          fi
+          
+          ls -la
+          echo "✅ SDK installation completed"
 
       - name: Verify Theos installation
         run: |
           echo "Checking Theos installation..."
-          if [ -z "$THEOS" ]; then
-            echo "❌ THEOS environment variable not set"
-            exit 1
-          fi
-          echo "✅ THEOS: $THEOS"
+          echo "THEOS: $THEOS"
           ls -la $THEOS/ || true
+          echo ""
           echo "Checking SDKs..."
           ls -la $THEOS/sdks/ || true
+          echo ""
+          echo "Checking Theos version..."
+          cat $THEOS/.theos_version || echo "No version file"
 
       - name: Configure build environment
         run: |
@@ -57,7 +88,6 @@ jobs:
           echo "ARCHS=arm64 arm64e" >> $GITHUB_ENV
           echo "Build environment configured:"
           echo "  THEOS: $THEOS"
-          echo "  SDK_PATH: $SDK_PATH"
           echo "  ARCHS: arm64 arm64e"
 
       - name: Build main tweak
@@ -91,22 +121,11 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: WXKBTweak-deb-packages
+          name: WXKBTweak-deb-packages-manual
           path: |
             packages/*.deb
           retention-days: 30
           if-no-files-found: error
-
-      - name: Create Release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v1
-        with:
-          files: packages/*.deb
-          draft: false
-          prerelease: false
-          generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build summary
         if: always()
