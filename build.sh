@@ -32,8 +32,16 @@ echo ""
 echo "🔨 编译设置面板..."
 cd wxkbtweakprefs
 make clean 2>/dev/null || true
-make package FINALPACKAGE=1
+make all
 cd ..
+
+# 复制设置面板到主包布局
+echo ""
+echo "📦 复制设置面板到主包..."
+mkdir -p layout/Library/PreferenceBundles
+mkdir -p layout/Library/PreferenceLoader/Preferences
+cp -r wxkbtweakprefs/.theos/obj/debug/WXKBTweakPrefs.bundle layout/Library/PreferenceBundles/
+cp wxkbtweakprefs/entry.plist layout/Library/PreferenceLoader/Preferences/WXKBTweakPrefs.plist
 
 # 显示生成的deb包
 echo ""
