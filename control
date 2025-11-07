@@ -1,0 +1,16 @@
+Package: com.laowang.wxkbtweak
+Name: WXKBTweak - 微信输入法增强
+Version: 2.0.1
+Architecture: iphoneos-arm64
+Description: 微信输入法增强插件 - 支持上下滑动切换中英文输入
+ 功能特性：
+ • 在键盘上上下滑动快速切换中英文
+ • 可自定义滑动灵敏度
+ • 支持震动反馈和视觉提示
+ • 完美适配rootless越狱环境
+ 老王出品，必属精品！
+Maintainer: 老王 <laowang@example.com>
+Author: 老王 <laowang@example.com>
+Section: Tweaks
+Depends: mobilesubstrate (>= 0.9.5000), preferenceloader, com.opa334.ccsupport
+Icon: file:///Library/PreferenceBundles/WXKBTweakPrefs.bundle/icon@2x.png
