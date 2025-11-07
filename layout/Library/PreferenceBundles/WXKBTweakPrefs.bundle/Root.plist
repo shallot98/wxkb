@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>items</key>
+	<array>
+		<!-- 老王的Banner -->
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>WXKBTweak - 老王出品</string>
+			<key>footerText</key>
+			<string>微信输入法增强插件，支持上下滑动切换中英文。艹，这功能真tm好用！</string>
+		</dict>
+
+		<!-- 总开关 -->
+		<dict>
+			<key>cell</key>
+			<string>PSSwitchCell</string>
+			<key>default</key>
+			<true/>
+			<key>defaults</key>
+			<string>com.laowang.wxkbtweak</string>
+			<key>key</key>
+			<string>enabled</string>
+			<key>label</key>
+			<string>启用插件</string>
+			<key>PostNotification</key>
+			<string>com.laowang.wxkbtweak/ReloadPrefs</string>
+		</dict>
+
+		<!-- 手势设置 -->
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>手势设置</string>
+		</dict>
+
+		<!-- 滑动阈值 -->
+		<dict>
+			<key>cell</key>
+			<string>PSSliderCell</string>
+			<key>default</key>
+			<real>50.0</real>
+			<key>defaults</key>
+			<string>com.laowang.wxkbtweak</string>
+			<key>key</key>
+			<string>threshold</string>
+			<key>label</key>
+			<string>滑动阈值</string>
+			<key>min</key>
+			<real>20.0</real>
+			<key>max</key>
+			<real>100.0</real>
+			<key>showValue</key>
+			<true/>
+			<key>PostNotification</key>
+			<string>com.laowang.wxkbtweak/ReloadPrefs</string>
+		</dict>
+
+		<!-- 灵敏度 -->
+		<dict>
+			<key>cell</key>
+			<string>PSSliderCell</string>
+			<key>default</key>
+			<real>1.0</real>
+			<key>defaults</key>
+			<string>com.laowang.wxkbtweak</string>
+			<key>key</key>
+			<string>sensitivity</string>
+			<key>label</key>
+			<string>灵敏度</string>
+			<key>min</key>
+			<real>0.5</real>
+			<key>max</key>
+			<real>2.0</real>
+			<key>showValue</key>
+			<true/>
+			<key>PostNotification</key>
+			<string>com.laowang.wxkbtweak/ReloadPrefs</string>
+		</dict>
+
+		<!-- 反馈设置 -->
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>反馈设置</string>
+			<key>footerText</key>
+			<string>老王建议都打开，体验更好！</string>
+		</dict>
+
+		<!-- 震动反馈 -->
+		<dict>
+			<key>cell</key>
+			<string>PSSwitchCell</string>
+			<key>default</key>
+			<true/>
+			<key>defaults</key>
+			<string>com.laowang.wxkbtweak</string>
+			<key>key</key>
+			<string>haptic</string>
+			<key>label</key>
+			<string>震动反馈</string>
+			<key>PostNotification</key>
+			<string>com.laowang.wxkbtweak/ReloadPrefs</string>
+		</dict>
+
+		<!-- 视觉反馈 -->
+		<dict>
+			<key>cell</key>
+			<string>PSSwitchCell</string>
+			<key>default</key>
+			<true/>
+			<key>defaults</key>
+			<string>com.laowang.wxkbtweak</string>
+			<key>key</key>
+			<string>visual</string>
+			<key>label</key>
+			<string>视觉提示</string>
+			<key>PostNotification</key>
+			<string>com.laowang.wxkbtweak/ReloadPrefs</string>
+		</dict>
+
+		<!-- 关于 -->
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>关于</string>
+		</dict>
+
+		<dict>
+			<key>cell</key>
+			<string>PSButtonCell</string>
+			<key>label</key>
+			<string>重启SpringBoard</string>
+			<key>action</key>
+			<string>respring</string>
+		</dict>
+
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>footerText</key>
+			<string>WXKBTweak v1.0.0
+作者：老王
+艹，这插件写得真tm不容易！</string>
+		</dict>
+	</array>
+	<key>title</key>
+	<string>WXKBTweak</string>
+</dict>
+</plist>

@@ -1,0 +1,12 @@
+Package: com.laowang.wxkbtweak.prefs
+Name: WXKBTweak Preferences
+Version: 2.0.1
+Architecture: iphoneos-arm64
+Description: WXKBTweak preferences bundle
+ Preferences bundle for WXKBTweak WeChat keyboard enhancement
+ 老王出品，必属精品！
+Maintainer: 老王 <laowang@example.com>
+Author: 老王 <laowang@example.com>
+Section: Tweaks
+Depends: preferenceloader, com.opa334.ccsupport
+Icon: file:///Library/PreferenceBundles/WXKBTweakPrefs.bundle/icon@2x.png

@@ -18,3 +18,17 @@ WXKBTweak_FRAMEWORKS = UIKit Foundation CoreGraphics AudioToolbox
 WXKBTweak_PRIVATE_FRAMEWORKS =
 
 include $(THEOS_MAKE_PATH)/tweak.mk
+
+before-stage::
+	@echo "📦 复制设置面板到包布局..."
+	@mkdir -p $(THEOS_LAYOUT_DIR)/Library/PreferenceBundles
+	@mkdir -p $(THEOS_LAYOUT_DIR)/Library/PreferenceLoader/Preferences
+	@if [ -d "wxkbtweakprefs/.theos/obj/debug/WXKBTweakPrefs.bundle" ]; then \
+		cp -r wxkbtweakprefs/.theos/obj/debug/WXKBTweakPrefs.bundle $(THEOS_LAYOUT_DIR)/Library/PreferenceBundles/; \
+	fi
+	@if [ -f "wxkbtweakprefs/entry.plist" ]; then \
+		cp wxkbtweakprefs/entry.plist $(THEOS_LAYOUT_DIR)/Library/PreferenceLoader/Preferences/WXKBTweakPrefs.plist; \
+	fi
+
+after-install::
+	install.exec "sbreload"
