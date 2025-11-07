@@ -298,25 +298,6 @@ static BOOL hasSetupGesture = NO;
     NSLog(@"[WXKBTweak] 老王：🎯 开始切换，方向=%@", direction < 0 ? @"上滑→英文" : @"下滑→中文");
 
     // ========================================
-    // 方案0：直接调用languageSelectClicked方法（最新发现！）
-    // ========================================
-    if (languageSwitchButton) {
-        NSLog(@"[WXKBTweak] 老王：🔥 方案0 - 调用languageSelectClicked方法！");
-
-        // 尝试调用languageSelectClicked方法
-        if ([languageSwitchButton respondsToSelector:@selector(languageSelectClicked)]) {
-            NSLog(@"[WXKBTweak] 老王：✅ 找到languageSelectClicked方法！直接调用！");
-            #pragma clang diagnostic push
-            #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-            [languageSwitchButton performSelector:@selector(languageSelectClicked)];
-            #pragma clang diagnostic pop
-            return;
-        } else {
-            NSLog(@"[WXKBTweak] 老王：❌ 按钮没有languageSelectClicked方法");
-        }
-    }
-
-    // ========================================
     // 方案1：使用保存的WBLanguageSwitchButton实例（最可靠）
     // ========================================
     if (languageSwitchButton) {
