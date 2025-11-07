@@ -265,62 +265,70 @@ static BOOL hasSetupGesture = NO;
 %new
 - (void)performLanguageSwitchWithDirection:(CGFloat)direction {
     /*
-     * 老王注：这里是核心切换逻辑
-     * 基于逆向分析，我们知道有以下几个关键类：
-     * 1. WBLanguageSwitchButton - 语言切换按钮
-     * 2. WBLanguageSwitchView - 语言切换视图
-     * 3. WBKeyFuncLangSwitch - 语言切换功能
+     * 老王注：核心切换逻辑 - 修复版
+     * 问题：之前的方法都没找到正确的按钮
+     * 解决：更激进的查找策略
      */
 
-    // 方案1：直接点击语言切换按钮（最简单粗暴）
+    NSLog(@"[WXKBTweak] 老王：开始切换，方向=%@", direction < 0 ? @"英文" : @"中文");
+
+    // 方案1：直接点击保存的按钮
     if (languageSwitchButton && [languageSwitchButton isKindOfClass:[UIButton class]]) {
-        NSLog(@"[WXKBTweak] 老王：找到切换按钮，直接点击！");
+        NSLog(@"[WXKBTweak] 老王：使用保存的切换按钮！");
         [languageSwitchButton sendActionsForControlEvents:UIControlEventTouchUpInside];
         return;
     }
 
-    // 方案2：查找WBLanguageSwitchButton
-    id switchBtn = [self findLanguageSwitchButton];
-    if (switchBtn && [switchBtn isKindOfClass:[UIButton class]]) {
-        NSLog(@"[WXKBTweak] 老王：通过查找找到切换按钮！");
-        [(UIButton *)switchBtn sendActionsForControlEvents:UIControlEventTouchUpInside];
+    // 方案2：查找WBLanguageSwitchButton类型
+    Class WBLanguageSwitchButtonClass = NSClassFromString(@"WBLanguageSwitchButton");
+    if (WBLanguageSwitchButtonClass) {
+        id switchBtn = [self findViewOfClass:WBLanguageSwitchButtonClass inView:self];
+        if (switchBtn) {
+            NSLog(@"[WXKBTweak] 老王：找到WBLanguageSwitchButton！");
+            [(UIButton *)switchBtn sendActionsForControlEvents:UIControlEventTouchUpInside];
+            return;
+        }
+    }
+
+    // 方案3：暴力查找所有UIButton，找切换按钮
+    NSLog(@"[WXKBTweak] 老王：开始暴力查找所有按钮...");
+    UIButton *foundButton = [self findLanguageSwitchButtonRecursive:self];
+    if (foundButton) {
+        NSLog(@"[WXKBTweak] 老王：暴力查找成功！点击按钮！");
+        [foundButton sendActionsForControlEvents:UIControlEventTouchUpInside];
         return;
     }
 
-    // 方案3：尝试调用可能的切换方法
+    // 方案4：查找输入法控制器并尝试调用方法
     UIViewController *inputVC = [self findInputViewController];
     if (inputVC) {
-        // 尝试常见的切换方法
+        NSLog(@"[WXKBTweak] 老王：找到输入法控制器：%@", NSStringFromClass([inputVC class]));
+
+        // 尝试更多可能的方法
         SEL selectors[] = {
-            @selector(switchToFunc),
-            @selector(toggleFunc),
-            @selector(setLanguage:),
-            @selector(setInputMode:),
-            @selector(setKeyboardMode:),
-            @selector(updateLanguage:),
-            @selector(switchPanelView:),
-            @selector(switchEngineSession),
+            @selector(switchInputMode),
+            @selector(toggleLanguage),
+            @selector(switchLanguage),
+            @selector(changeLanguage),
+            @selector(switchToEnglish),
+            @selector(switchToChinese),
+            @selector(toggleInputMode),
             nil
         };
 
         for (int i = 0; selectors[i] != nil; i++) {
             if ([inputVC respondsToSelector:selectors[i]]) {
-                NSLog(@"[WXKBTweak] 老王：找到切换方法！%@", NSStringFromSelector(selectors[i]));
-
+                NSLog(@"[WXKBTweak] 老王：找到方法！%@", NSStringFromSelector(selectors[i]));
                 #pragma clang diagnostic push
                 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
                 [inputVC performSelector:selectors[i]];
                 #pragma clang diagnostic pop
-
                 return;
             }
         }
     }
 
-    // 方案4：递归查找所有按钮，找包含"中英"、"EN"等关键字的
-    [self findAndTapLanguageSwitchButton];
-
-    NSLog(@"[WXKBTweak] 老王：切换方向=%@", direction < 0 ? @"英文" : @"中文");
+    NSLog(@"[WXKBTweak] 老王：艹，所有方法都失败了！需要更深入的逆向分析！");
 }
 
 %new
@@ -356,6 +364,42 @@ static BOOL hasSetupGesture = NO;
         }
         responder = [responder nextResponder];
     }
+    return nil;
+}
+
+%new
+- (UIButton *)findLanguageSwitchButtonRecursive:(UIView *)view {
+    // 暴力递归查找切换按钮（老王的新方法）
+    if ([view isKindOfClass:[UIButton class]]) {
+        UIButton *button = (UIButton *)view;
+        NSString *title = button.titleLabel.text ?: @"";
+        NSString *accessibilityLabel = button.accessibilityLabel ?: @"";
+        NSString *className = NSStringFromClass([button class]);
+
+        NSLog(@"[WXKBTweak] 老王：检查按钮 - 类:%@ 标题:%@ label:%@", className, title, accessibilityLabel);
+
+        // 检查类名
+        if ([className containsString:@"Language"] || [className containsString:@"Switch"]) {
+            NSLog(@"[WXKBTweak] 老王：通过类名找到！");
+            return button;
+        }
+
+        // 检查标题和label
+        NSArray *keywords = @[@"中", @"EN", @"英", @"CH", @"中英", @"English", @"Chinese", @"语言", @"切换"];
+        for (NSString *keyword in keywords) {
+            if ([title containsString:keyword] || [accessibilityLabel containsString:keyword]) {
+                NSLog(@"[WXKBTweak] 老王：通过关键字找到！");
+                return button;
+            }
+        }
+    }
+
+    // 递归查找子视图
+    for (UIView *subview in view.subviews) {
+        UIButton *found = [self findLanguageSwitchButtonRecursive:subview];
+        if (found) return found;
+    }
+
     return nil;
 }
 

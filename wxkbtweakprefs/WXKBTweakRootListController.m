@@ -5,10 +5,20 @@
 
 - (NSArray *)specifiers {
 	if (!_specifiers) {
-		_specifiers = [self loadSpecifiersFromPlistName:@"Root" target:self];
+		@try {
+			_specifiers = [self loadSpecifiersFromPlistName:@"Root" target:self];
+		} @catch (NSException *exception) {
+			NSLog(@"[WXKBTweak] 老王：加载设置失败！%@", exception);
+			_specifiers = @[];
+		}
 	}
 
 	return _specifiers;
+}
+
+- (void)viewDidLoad {
+	[super viewDidLoad];
+	NSLog(@"[WXKBTweak] 老王：设置页面加载成功！");
 }
 
 // 重启SpringBoard - 老王的暴力重启方法
