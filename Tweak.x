@@ -189,6 +189,7 @@ static WBLanguageSwitchButton *languageSwitchButton = nil;
 - (id)findLanguageSwitchButton;
 - (id)findViewOfClass:(Class)targetClass inView:(UIView *)view;
 - (UIViewController *)findInputViewController;
+- (UIButton *)findLanguageSwitchButtonRecursive:(UIView *)view;
 - (void)findAndTapLanguageSwitchButton;
 - (void)searchButtonInView:(UIView *)view;
 - (void)searchButtonInView:(UIView *)view depth:(NSInteger)depth maxDepth:(NSInteger)maxDepth;
