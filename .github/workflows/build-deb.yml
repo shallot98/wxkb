@@ -1,0 +1,95 @@
+name: Build Rootless DEB
+
+on:
+  push:
+    branches: [ main, master ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build DEB for arm64 & arm64e
+    runs-on: macos-14
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Theos environment
+        uses: Randomblock1/theos-action@v1
+        with:
+          theos-sdks: 16.5
+
+      - name: Configure build environment
+        run: |
+          echo "Setting up build environment..."
+          export THEOS_PACKAGE_SCHEME=rootless
+          export ARCHS="arm64 arm64e"
+          echo "THEOS_PACKAGE_SCHEME=rootless" >> $GITHUB_ENV
+          echo "ARCHS=arm64 arm64e" >> $GITHUB_ENV
+          echo "Build environment configured:"
+          echo "  THEOS: $THEOS"
+          echo "  SDK_PATH: $SDK_PATH"
+          echo "  ARCHS: arm64 arm64e"
+
+      - name: Build main tweak
+        run: |
+          echo "Building WXKBTweak main tweak..."
+          make clean
+          make package FINALPACKAGE=1
+          echo "✅ Main tweak build completed"
+
+      - name: Build preferences bundle
+        run: |
+          echo "Building WXKBTweakPrefs bundle..."
+          cd wxkbtweakprefs
+          make clean
+          make package FINALPACKAGE=1
+          cd ..
+          echo "✅ Preferences bundle build completed"
+
+      - name: List generated artifacts
+        if: always()
+        run: |
+          echo "Generated DEB files:"
+          find . -name "*.deb" -type f -exec ls -lh {} \;
+          echo ""
+          echo "Package structure:"
+          ls -la packages/ 2>/dev/null || echo "No packages directory found"
+
+      - name: Upload artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: WXKBTweak-deb-packages
+          path: |
+            packages/*.deb
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: packages/*.deb
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build summary
+        if: always()
+        run: |
+          echo "=========================================="
+          echo "Build Summary"
+          echo "=========================================="
+          echo "Branch: ${{ github.ref }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Event: ${{ github.event_name }}"
+          echo "Runner: ${{ runner.os }}-${{ runner.arch }}"
+          echo "=========================================="
