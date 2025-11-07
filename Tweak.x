@@ -181,6 +181,20 @@ static WBLanguageSwitchButton *languageSwitchButton = nil;
 %end
 
 // ============================================
+// UIInputView Category - 声明所有helper方法
+// ============================================
+@interface UIInputView (WXKBTweak)
+- (void)handleLanguageSwitch:(NSNotification *)notification;
+- (void)performLanguageSwitchWithDirection:(CGFloat)direction;
+- (id)findLanguageSwitchButton;
+- (id)findViewOfClass:(Class)targetClass inView:(UIView *)view;
+- (UIViewController *)findInputViewController;
+- (void)findAndTapLanguageSwitchButton;
+- (void)searchButtonInView:(UIView *)view;
+- (void)searchButtonInView:(UIView *)view depth:(NSInteger)depth maxDepth:(NSInteger)maxDepth;
+@end
+
+// ============================================
 // Hook键盘主视图 - 添加手势识别
 // ============================================
 %hook UIInputView
@@ -266,10 +280,10 @@ static BOOL hasSetupGesture = NO;
     }
 
     // 方案2：查找WBLanguageSwitchButton
-    WBLanguageSwitchButton *switchBtn = [self findLanguageSwitchButton];
-    if (switchBtn) {
+    id switchBtn = [self findLanguageSwitchButton];
+    if (switchBtn && [switchBtn isKindOfClass:[UIButton class]]) {
         NSLog(@"[WXKBTweak] 老王：通过查找找到切换按钮！");
-        [switchBtn sendActionsForControlEvents:UIControlEventTouchUpInside];
+        [(UIButton *)switchBtn sendActionsForControlEvents:UIControlEventTouchUpInside];
         return;
     }
 
@@ -310,9 +324,13 @@ static BOOL hasSetupGesture = NO;
 }
 
 %new
-- (WBLanguageSwitchButton *)findLanguageSwitchButton {
+- (id)findLanguageSwitchButton {
     // 递归查找WBLanguageSwitchButton
-    return [self findViewOfClass:[WBLanguageSwitchButton class] inView:self];
+    Class WBLanguageSwitchButtonClass = NSClassFromString(@"WBLanguageSwitchButton");
+    if (WBLanguageSwitchButtonClass) {
+        return [self findViewOfClass:WBLanguageSwitchButtonClass inView:self];
+    }
+    return nil;
 }
 
 %new
@@ -363,7 +381,8 @@ static BOOL hasSetupGesture = NO;
 
     for (UIView *subview in view.subviews) {
         // 优先检查WBLanguageSwitchButton类型
-        if ([subview isKindOfClass:[WBLanguageSwitchButton class]]) {
+        Class WBLanguageSwitchButtonClass = NSClassFromString(@"WBLanguageSwitchButton");
+        if (WBLanguageSwitchButtonClass && [subview isKindOfClass:WBLanguageSwitchButtonClass]) {
             NSLog(@"[WXKBTweak] 老王：找到WBLanguageSwitchButton！");
             [(UIButton *)subview sendActionsForControlEvents:UIControlEventTouchUpInside];
             return;
