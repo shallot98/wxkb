@@ -260,4 +260,88 @@ on:
 
 ---
 
+## 🔨 Preferences框架链接问题修复
+
+### 问题描述
+
+GitHub Actions构建时，WXKBTweakPrefs偏好设置bundle会报错：
+```
+ld: framework 'Preferences' not found
+clang: error: linker command failed with exit code 1
+```
+
+### 根本原因
+
+1. **Preferences是iOS私有框架**
+   - 不在标准SDK中
+   - CI/CD环境下可能找不到
+
+2. **PreferenceLoader的工作原理**
+   - bundle在运行时动态加载
+   - Preferences框架在加载时才可用
+   - 不需要在编译时链接
+
+### 修复方案
+
+#### 1. 提供本地头文件
+
+创建 `wxkbtweakprefs/Preferences/PSListController.h`：
+```objc
+#import <UIKit/UIKit.h>
+
+@interface PSListController : UIViewController <UITableViewDelegate, UITableViewDataSource>
+{
+    NSArray *_specifiers;
+}
+
+- (NSArray *)loadSpecifiersFromPlistName:(NSString *)name target:(id)target;
+- (NSArray *)specifiers;
+
+@end
+```
+
+#### 2. 修改Makefile
+
+修改 `wxkbtweakprefs/Makefile`：
+```makefile
+# 修改前：
+WXKBTweakPrefs_FRAMEWORKS = UIKit
+WXKBTweakPrefs_PRIVATE_FRAMEWORKS = Preferences  # ❌ 会导致链接失败
+
+# 修改后：
+WXKBTweakPrefs_FRAMEWORKS = UIKit CoreGraphics
+WXKBTweakPrefs_CFLAGS = -fobjc-arc -I$(THEOS_PROJECT_DIR)  # 添加头文件搜索路径
+WXKBTweakPrefs_LDFLAGS = -undefined dynamic_lookup  # 允许运行时符号解析
+```
+
+### 工作原理
+
+1. **编译时**
+   - 使用本地头文件获取接口定义
+   - `-I$(THEOS_PROJECT_DIR)` 让编译器找到本地头文件
+   - `-undefined dynamic_lookup` 允许未定义符号
+
+2. **运行时**
+   - PreferenceLoader加载bundle
+   - Preferences框架已在内存中
+   - 符号自动解析，一切正常工作
+
+### 为什么这样做？
+
+- ✅ **不依赖特定SDK**：本地头文件保证编译通过
+- ✅ **CI/CD友好**：不需要下载额外的私有框架
+- ✅ **运行时安全**：真实设备上Preferences框架存在
+- ✅ **标准做法**：这是Theos偏好设置bundle的常见模式
+
+### 验证修复
+
+构建成功的标志：
+```
+==> Compiling WXKBTweakRootListController.m (arm64)…
+==> Linking bundle WXKBTweakPrefs (arm64)…
+✅ No "framework not found" errors
+```
+
+---
+
 *老王出品 · 问题修复 · 一劳永逸*
