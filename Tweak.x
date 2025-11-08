@@ -193,6 +193,21 @@ static NSLock *buttonLock = nil;
     return btn;
 }
 
+%new
+- (void)wxkb_performLanguageSwitchDirectly {
+    NSLog(@"[WXKBTweak] 🔥 开始直接语言切换");
+    if ([self respondsToSelector:@selector(languageSelectClicked)]) {
+        NSLog(@"[WXKBTweak] ✅ 调用languageSelectClicked");
+        #pragma clang diagnostic push
+        #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+        [self performSelector:@selector(languageSelectClicked)];
+        #pragma clang diagnostic pop
+    } else {
+        NSLog(@"[WXKBTweak] ⚠️ languageSelectClicked不存在，执行标准点击");
+        [self sendActionsForControlEvents:UIControlEventTouchUpInside];
+    }
+}
+
 %end
 
 // ============================================
@@ -203,9 +218,28 @@ static NSLock *buttonLock = nil;
 - (instancetype)initWithFrame:(CGRect)frame {
     self = %orig;
     if (self) {
-        NSLog(@"[WXKBTweak] WBLanguageSwitchView初始化");
+        NSLog(@"[WXKBTweak] ✅ WBLanguageSwitchView初始化: frame=%@", NSStringFromCGRect(frame));
     }
     return self;
+}
+
+- (void)didMoveToWindow {
+    %orig;
+    if (self.window) {
+        NSLog(@"[WXKBTweak] ✅ WBLanguageSwitchView已显示在window中");
+    }
+}
+
+%end
+
+// ============================================
+// Hook WBKeyFuncLangSwitch (可选的语言切换处理)
+// ============================================
+%hook WBKeyFuncLangSwitch
+
+- (void)switchToFunc {
+    NSLog(@"[WXKBTweak] 🔥 WBKeyFuncLangSwitch.switchToFunc被调用");
+    %orig;
 }
 
 %end
@@ -333,33 +367,64 @@ static NSLock *buttonLock = nil;
 
 %new
 - (void)wxkb_performLanguageSwitchWithDirection:(CGFloat)direction {
-    NSLog(@"[WXKBTweak] 🎯 开始切换语言，方向=%@", direction < 0 ? @"上滑" : @"下滑");
+    NSLog(@"[WXKBTweak] 🎯 开始切换语言，方向=%@", direction < 0 ? @"上滑(English)" : @"下滑(Chinese)");
 
     // ========================================
-    // 方案1：使用保存的全局按钮实例
+    // 方案0：直接调用languageSelectClicked方法（最新发现）
     // ========================================
     [buttonLock lock];
     WBLanguageSwitchButton *button = globalLanguageSwitchButton;
     [buttonLock unlock];
 
     if (button && button.window) {
-        NSLog(@"[WXKBTweak] ✅ 方案1：使用全局按钮实例");
+        NSLog(@"[WXKBTweak] 🔥 方案0：尝试直接调用languageSelectClicked方法");
+        if ([button respondsToSelector:@selector(languageSelectClicked)]) {
+            NSLog(@"[WXKBTweak] ✅ 找到languageSelectClicked方法，直接调用！");
+            #pragma clang diagnostic push
+            #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+            [button performSelector:@selector(languageSelectClicked)];
+            #pragma clang diagnostic pop
+            return;
+        }
+        NSLog(@"[WXKBTweak] ⚠️ 按钮没有languageSelectClicked方法");
+    }
+
+    // ========================================
+    // 方案1：使用保存的全局按钮实例（点击）
+    // ========================================
+    [buttonLock lock];
+    button = globalLanguageSwitchButton;
+    [buttonLock unlock];
+
+    if (button && button.window) {
+        NSLog(@"[WXKBTweak] ✅ 方案1：使用全局按钮实例，执行点击");
         [button sendActionsForControlEvents:UIControlEventTouchUpInside];
         return;
     }
 
     // ========================================
-    // 方案2：通过类名查找
+    // 方案2：通过类名查找并调用languageSelectClicked
     // ========================================
     NSLog(@"[WXKBTweak] 🔍 方案2：通过类名查找按钮");
     Class WBLanguageSwitchButtonClass = NSClassFromString(@"WBLanguageSwitchButton");
     if (WBLanguageSwitchButtonClass) {
         UIButton *foundButton = (UIButton *)[self wxkb_findViewOfClass:WBLanguageSwitchButtonClass inView:self];
         if (foundButton) {
-            NSLog(@"[WXKBTweak] ✅ 找到按钮，点击");
+            NSLog(@"[WXKBTweak] ✅ 找到按钮，尝试调用languageSelectClicked");
             [buttonLock lock];
             globalLanguageSwitchButton = (WBLanguageSwitchButton *)foundButton;
             [buttonLock unlock];
+            
+            if ([foundButton respondsToSelector:@selector(languageSelectClicked)]) {
+                NSLog(@"[WXKBTweak] ✅ 成功调用languageSelectClicked");
+                #pragma clang diagnostic push
+                #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+                [foundButton performSelector:@selector(languageSelectClicked)];
+                #pragma clang diagnostic pop
+                return;
+            }
+            
+            NSLog(@"[WXKBTweak] ⚠️ 按钮没有languageSelectClicked方法，尝试点击");
             [foundButton sendActionsForControlEvents:UIControlEventTouchUpInside];
             return;
         }
@@ -377,6 +442,17 @@ static NSLock *buttonLock = nil;
             globalLanguageSwitchButton = (WBLanguageSwitchButton *)recursiveButton;
         }
         [buttonLock unlock];
+        
+        if ([recursiveButton respondsToSelector:@selector(languageSelectClicked)]) {
+            NSLog(@"[WXKBTweak] ✅ 成功调用languageSelectClicked");
+            #pragma clang diagnostic push
+            #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+            [recursiveButton performSelector:@selector(languageSelectClicked)];
+            #pragma clang diagnostic pop
+            return;
+        }
+        
+        NSLog(@"[WXKBTweak] ⚠️ 按钮没有languageSelectClicked方法，尝试点击");
         [recursiveButton sendActionsForControlEvents:UIControlEventTouchUpInside];
         return;
     }
@@ -408,7 +484,40 @@ static NSLock *buttonLock = nil;
         }
     }
 
-    NSLog(@"[WXKBTweak] ⚠️ 所有方案都未成功，需要更多诊断信息");
+    // ========================================
+    // 方案5：尝试通过通知触发语言切换
+    // ========================================
+    NSLog(@"[WXKBTweak] 🔍 方案5：尝试通过内部通知触发切换");
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"WBLanguageSwitchButtonClicked" 
+                                                        object:nil 
+                                                      userInfo:@{@"direction": @(direction)}];
+    
+    // ========================================
+    // 方案6：尝试调用WBKeyFuncLangSwitch的方法
+    // ========================================
+    NSLog(@"[WXKBTweak] 🔍 方案6：查找WBKeyFuncLangSwitch的方法");
+    Class WBKeyFuncLangSwitchClass = NSClassFromString(@"WBKeyFuncLangSwitch");
+    if (WBKeyFuncLangSwitchClass) {
+        SEL selectors[] = {
+            @selector(switchToFunc),
+            @selector(toggleFunc),
+            @selector(switchLanguage),
+            nil
+        };
+
+        for (int i = 0; selectors[i] != nil; i++) {
+            if ([WBKeyFuncLangSwitchClass respondsToSelector:selectors[i]]) {
+                NSLog(@"[WXKBTweak] ✅ 找到WBKeyFuncLangSwitch方法: %@", NSStringFromSelector(selectors[i]));
+                #pragma clang diagnostic push
+                #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+                [WBKeyFuncLangSwitchClass performSelector:selectors[i]];
+                #pragma clang diagnostic pop
+                return;
+            }
+        }
+    }
+
+    NSLog(@"[WXKBTweak] ⚠️ 所有6个方案都未成功，需要更多诊断信息");
 }
 
 %new
