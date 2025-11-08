@@ -2,12 +2,23 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>Filter</key>
-	<dict>
-		<key>Bundles</key>
-		<array>
-			<string>com.tencent.wetype.keyboard</string>
-		</array>
-	</dict>
+    <key>Filter</key>
+    <dict>
+        <key>Bundles</key>
+        <array>
+            <string>com.tencent.wetype.keyboard</string>
+            <string>com.tencent.wetype</string>
+            <string>com.tencent.MicroMessenger</string>
+            <string>com.wechat.keyboard</string>
+        </array>
+        <key>Executables</key>
+        <array>
+            <string>wetype</string>
+            <string>WeChat</string>
+            <string>wechat</string>
+        </array>
+    </dict>
+    <key>CoreFoundationVersion</key>
+    <string>1348.00</string>
 </dict>
 </plist>

@@ -52,6 +52,8 @@ static CGFloat swipeSensitivity = 1.0;             // 灵敏度系数 (0.5-2.0)
     UITouch *touch = [touches anyObject];
     self.startPoint = [touch locationInView:self.view];
     self.hasTriggered = NO;
+    
+    NSLog(@"[WXKBTweak] 👆 手势开始 - 起点: (%.2f, %.2f)", self.startPoint.x, self.startPoint.y);
 }
 
 - (void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
@@ -76,18 +78,30 @@ static CGFloat swipeSensitivity = 1.0;             // 灵敏度系数 (0.5-2.0)
     if (fabs(verticalDistance) > adjustedThreshold) {
         self.hasTriggered = YES;
 
+        NSLog(@"[WXKBTweak] 🎯 ===== 手势触发！ =====");
+        NSLog(@"[WXKBTweak]   - 起点: (%.2f, %.2f)", self.startPoint.x, self.startPoint.y);
+        NSLog(@"[WXKBTweak]   - 当前: (%.2f, %.2f)", currentPoint.x, currentPoint.y);
+        NSLog(@"[WXKBTweak]   - 垂直距离: %.2fpx", verticalDistance);
+        NSLog(@"[WXKBTweak]   - 水平距离: %.2fpx", horizontalDistance);
+        NSLog(@"[WXKBTweak]   - 阈值: %.2fpx", adjustedThreshold);
+        NSLog(@"[WXKBTweak]   - 方向: %@", verticalDistance < 0 ? @"上滑" : @"下滑");
+        NSLog(@"[WXKBTweak]   - 灵敏度: %.2f", swipeSensitivity);
+
         // 触发切换（艹，终于到关键部分了）
+        NSLog(@"[WXKBTweak] 📢 发送语言切换通知...");
         [[NSNotificationCenter defaultCenter] postNotificationName:@"WXKBSwitchLanguage"
                                                             object:nil
                                                           userInfo:@{@"direction": @(verticalDistance)}];
 
         // 震动反馈 - 让用户知道老王的插件在工作
         if (hapticFeedbackEnabled) {
+            NSLog(@"[WXKBTweak] 📳 触发震动反馈");
             AudioServicesPlaySystemSound(1519); // 轻微震动
+        } else {
+            NSLog(@"[WXKBTweak] 🔇 震动反馈已禁用");
         }
 
-        NSLog(@"[WXKBTweak] 老王：检测到滑动！距离=%.2f，方向=%@",
-              verticalDistance, verticalDistance < 0 ? @"上滑" : @"下滑");
+        NSLog(@"[WXKBTweak] ✅ 手势处理完成 =====");
     }
 }
 
@@ -231,61 +245,118 @@ static BOOL hasSetupGesture = NO;
 
 - (void)didMoveToWindow {
     %orig;
-
-    if (!tweakEnabled || !self.window) return;
-
-    // 检查是否是微信输入法（通过Bundle ID判断）
-    NSString *bundleID = [[NSBundle mainBundle] bundleIdentifier];
-    if (![bundleID isEqualToString:@"com.tencent.wetype.keyboard"]) {
+    
+    NSLog(@"[WXKBTweak] 🎹 ===== UIInputView didMoveToWindow 被调用 =====");
+    NSLog(@"[WXKBTweak]   - 视图地址: %p", self);
+    NSLog(@"[WXKBTweak]   - 是否有Window: %@", self.window ? @"✅ 有" : @"❌ 无");
+    NSLog(@"[WXKBTweak]   - 视图大小: %@", NSStringFromCGRect(self.bounds));
+    
+    if (!tweakEnabled) {
+        NSLog(@"[WXKBTweak] ❌ 插件已禁用，跳过初始化");
+        return;
+    }
+    
+    if (!self.window) {
+        NSLog(@"[WXKBTweak] ⚠️  视图没有Window，跳过初始化");
         return;
     }
 
+    // 检查是否是微信输入法（通过Bundle ID判断）
+    NSString *bundleID = [[NSBundle mainBundle] bundleIdentifier];
+    NSLog(@"[WXKBTweak] 🎯 Bundle ID检查:");
+    NSLog(@"[WXKBTweak]   - 当前Bundle ID: %@", bundleID);
+    NSLog(@"[WXKBTweak]   - 目标Bundle ID: com.tencent.wetype.keyboard");
+    
+    if (![bundleID isEqualToString:@"com.tencent.wetype.keyboard"]) {
+        NSLog(@"[WXKBTweak] ❌ Bundle ID不匹配，不是微信输入法进程");
+        NSLog(@"[WXKBTweak] 💡 这可能意味着:");
+        NSLog(@"[WXKBTweak]   1. WXKBTweak.plist中的Filter配置错误");
+        NSLog(@"[WXKBTweak]   2. 微信输入法的实际Bundle ID已更改");
+        NSLog(@"[WXKBTweak]   3. 这是其他应用的键盘视图");
+        return;
+    }
+    
+    NSLog(@"[WXKBTweak] ✅ Bundle ID匹配，这是微信输入法进程！");
+
     // 避免重复设置（老王的优化）
     if (hasSetupGesture) {
+        NSLog(@"[WXKBTweak] 🔧 手势已经设置过，更新feedbackView位置");
         // 只更新feedbackView的位置
         if (feedbackView && visualFeedbackEnabled) {
             feedbackView.center = CGPointMake(self.bounds.size.width / 2, 30);
+            NSLog(@"[WXKBTweak] ✅ feedbackView位置已更新");
         }
         return;
     }
 
+    NSLog(@"[WXKBTweak] 🚀 开始初始化手势识别器...");
+    
     // 添加手势识别器（老王的核心代码）
     swipeGesture = [[WXKBSwipeGestureRecognizer alloc] initWithTarget:self action:nil];
     swipeGesture.cancelsTouchesInView = NO;
     swipeGesture.delaysTouchesBegan = NO;
     [self addGestureRecognizer:swipeGesture];
-
-    NSLog(@"[WXKBTweak] 老王：手势识别器已安装！");
+    
+    NSLog(@"[WXKBTweak] ✅ 手势识别器已安装！");
+    NSLog(@"[WXKBTweak]   - 手势类型: %@", NSStringFromClass([swipeGesture class]));
+    NSLog(@"[WXKBTweak]   - 取消触摸: %@", swipeGesture.cancelsTouchesInView ? @"是" : @"否");
+    NSLog(@"[WXKBTweak]   - 延迟触摸: %@", swipeGesture.delaysTouchesBegan ? @"是" : @"否");
 
     // 添加视觉反馈视图
     if (visualFeedbackEnabled) {
+        NSLog(@"[WXKBTweak] 🎨 创建视觉反馈视图...");
         feedbackView = [[WXKBFeedbackView alloc] initWithFrame:CGRectMake(0, 0, 120, 40)];
         feedbackView.center = CGPointMake(self.bounds.size.width / 2, 30);
         [self addSubview:feedbackView];
+        NSLog(@"[WXKBTweak] ✅ 视觉反馈视图已创建并添加");
+    } else {
+        NSLog(@"[WXKBTweak] ⚠️  视觉反馈已禁用");
     }
 
     // 监听切换通知（只添加一次）
+    NSLog(@"[WXKBTweak] 📢 注册通知监听器...");
     [[NSNotificationCenter defaultCenter] addObserver:self
                                              selector:@selector(handleLanguageSwitch:)
                                                  name:@"WXKBSwitchLanguage"
                                                object:nil];
+    NSLog(@"[WXKBTweak] ✅ 通知监听器已注册");
 
     hasSetupGesture = YES;
-    NSLog(@"[WXKBTweak] 老王：初始化完成！");
+    NSLog(@"[WXKBTweak] 🎉 WXKBTweak初始化完成！");
+    NSLog(@"[WXKBTweak]   - 插件状态: ✅ 已启用");
+    NSLog(@"[WXKBTweak]   - 手势识别: ✅ 已安装");
+    NSLog(@"[WXKBTweak]   - 视觉反馈: %@", visualFeedbackEnabled ? @"✅ 已启用" : @"❌ 已禁用");
+    NSLog(@"[WXKBTweak]   - 震动反馈: %@", hapticFeedbackEnabled ? @"✅ 已启用" : @"❌ 已禁用");
+    NSLog(@"[WXKBTweak]   - 滑动阈值: %.2fpx", swipeThreshold);
+    NSLog(@"[WXKBTweak]   - 灵敏度系数: %.2f", swipeSensitivity);
+    NSLog(@"[WXKBTweak] ===== 初始化完成 =====");
 }
 
 %new
 - (void)handleLanguageSwitch:(NSNotification *)notification {
+    NSLog(@"[WXKBTweak] 📨 ===== 收到语言切换通知 =====");
+    NSLog(@"[WXKBTweak]   - 通知名称: %@", notification.name);
+    NSLog(@"[WXKBTweak]   - 发送者: %@", notification.object);
+    NSLog(@"[WXKBTweak]   - 用户信息: %@", notification.userInfo);
+    
     CGFloat direction = [notification.userInfo[@"direction"] floatValue];
+    NSLog(@"[WXKBTweak]   - 切换方向: %@ (%.2f)", direction < 0 ? @"上滑→英文" : @"下滑→中文", direction);
 
     // 执行切换逻辑
+    NSLog(@"[WXKBTweak] 🔄 开始执行语言切换逻辑...");
     [self performLanguageSwitchWithDirection:direction];
 
     // 显示视觉反馈
     if (visualFeedbackEnabled && feedbackView) {
         NSString *text = direction < 0 ? @"English" : @"Chinese";
+        NSLog(@"[WXKBTweak] 🎨 显示视觉反馈: %@", text);
         [feedbackView showWithText:text];
+    } else {
+        NSLog(@"[WXKBTweak] ⚠️  视觉反馈已跳过 (enabled=%@, feedbackView=%@)", 
+              visualFeedbackEnabled ? @"YES" : @"NO", feedbackView ? @"存在" : @"不存在");
     }
+    
+    NSLog(@"[WXKBTweak] ✅ 语言切换通知处理完成 =====");
 }
 
 %new
@@ -579,19 +650,74 @@ static BOOL hasSetupGesture = NO;
 // 加载配置 - 从Preferences读取用户设置
 // ============================================
 static void loadPreferences() {
-    NSMutableDictionary *prefs = [[NSMutableDictionary alloc] initWithContentsOfFile:@"/var/mobile/Library/Preferences/com.laowang.wxkbtweak.plist"];
-
-    if (prefs) {
+    NSLog(@"[WXKBTweak] 📋 ===== 开始加载配置文件 =====");
+    
+    // 尝试多种可能的配置文件路径（rootless环境适配）
+    NSArray *possiblePaths = @[
+        @"/var/mobile/Library/Preferences/com.laowang.wxkbtweak.plist",
+        @"/var/jb/var/mobile/Library/Preferences/com.laowang.wxkbtweak.plist",
+        @"/var/mobile/Library/Preferences/com.laowang.wxkbtweak.plist"
+    ];
+    
+    NSMutableDictionary *prefs = nil;
+    NSString *usedPath = nil;
+    
+    for (NSString *path in possiblePaths) {
+        NSLog(@"[WXKBTweak] 🔍 尝试路径: %@", path);
+        if ([[NSFileManager defaultManager] fileExistsAtPath:path]) {
+            prefs = [[NSMutableDictionary alloc] initWithContentsOfFile:path];
+            if (prefs) {
+                usedPath = path;
+                NSLog(@"[WXKBTweak] ✅ 找到配置文件: %@", path);
+                break;
+            }
+        } else {
+            NSLog(@"[WXKBTweak] ❌ 文件不存在: %@", path);
+        }
+    }
+    
+    if (prefs && usedPath) {
+        NSLog(@"[WXKBTweak] 📖 配置文件内容:");
+        NSLog(@"[WXKBTweak]   - enabled: %@", prefs[@"enabled"]);
+        NSLog(@"[WXKBTweak]   - threshold: %@", prefs[@"threshold"]);
+        NSLog(@"[WXKBTweak]   - haptic: %@", prefs[@"haptic"]);
+        NSLog(@"[WXKBTweak]   - visual: %@", prefs[@"visual"]);
+        NSLog(@"[WXKBTweak]   - sensitivity: %@", prefs[@"sensitivity"]);
+        
+        // 读取配置值
         tweakEnabled = [prefs[@"enabled"] boolValue];
         swipeThreshold = [prefs[@"threshold"] floatValue] ?: 50.0;
         hapticFeedbackEnabled = [prefs[@"haptic"] boolValue];
         visualFeedbackEnabled = [prefs[@"visual"] boolValue];
         swipeSensitivity = [prefs[@"sensitivity"] floatValue] ?: 1.0;
-
-        NSLog(@"[WXKBTweak] 老王：配置加载成功！enabled=%d, threshold=%.2f", tweakEnabled, swipeThreshold);
+        
+        NSLog(@"[WXKBTweak] ✅ 配置加载成功！");
+        NSLog(@"[WXKBTweak]   - 插件开关: %@", tweakEnabled ? @"✅ 开启" : @"❌ 关闭");
+        NSLog(@"[WXKBTweak]   - 滑动阈值: %.2fpx", swipeThreshold);
+        NSLog(@"[WXKBTweak]   - 震动反馈: %@", hapticFeedbackEnabled ? @"✅ 开启" : @"❌ 关闭");
+        NSLog(@"[WXKBTweak]   - 视觉反馈: %@", visualFeedbackEnabled ? @"✅ 开启" : @"❌ 关闭");
+        NSLog(@"[WXKBTweak]   - 灵敏度: %.2f", swipeSensitivity);
     } else {
-        NSLog(@"[WXKBTweak] 老王：使用默认配置");
+        NSLog(@"[WXKBTweak] ⚠️  配置文件不存在或读取失败，使用默认配置");
+        NSLog(@"[WXKBTweak] 💡 请检查PreferenceBundle是否正确安装");
+        NSLog(@"[WXKBTweak] 💡 或手动创建配置文件: %@", possiblePaths[0]);
+        
+        // 使用默认配置
+        tweakEnabled = YES;
+        swipeThreshold = 50.0;
+        hapticFeedbackEnabled = YES;
+        visualFeedbackEnabled = YES;
+        swipeSensitivity = 1.0;
+        
+        NSLog(@"[WXKBTweak] 📋 默认配置:");
+        NSLog(@"[WXKBTweak]   - 插件开关: ✅ 开启");
+        NSLog(@"[WXKBTweak]   - 滑动阈值: %.2fpx", swipeThreshold);
+        NSLog(@"[WXKBTweak]   - 震动反馈: ✅ 开启");
+        NSLog(@"[WXKBTweak]   - 视觉反馈: ✅ 开启");
+        NSLog(@"[WXKBTweak]   - 灵敏度: %.2f", swipeSensitivity);
     }
+    
+    NSLog(@"[WXKBTweak] 📋 ===== 配置加载完成 =====");
 }
 
 // ============================================
@@ -599,13 +725,51 @@ static void loadPreferences() {
 // ============================================
 %ctor {
     @autoreleasepool {
+        // ===== 基础诊断信息 =====
         NSLog(@"[WXKBTweak] ========================================");
-        NSLog(@"[WXKBTweak] 老王的微信输入法增强插件 v2.0 已加载！");
-        NSLog(@"[WXKBTweak] 基于真实类名逆向分析版本");
-        NSLog(@"[WXKBTweak] 艹，这次代码写得更tm靠谱了！");
+        NSLog(@"[WXKBTweak] 🚀 WXKBTweak 构造函数开始执行！");
+        NSLog(@"[WXKBTweak] 版本: v2.0 诊断增强版");
         NSLog(@"[WXKBTweak] ========================================");
+        
+        // ===== 进程诊断信息 =====
+        NSString *processName = [[NSProcessInfo processInfo] processName];
+        NSString *bundleID = [[NSBundle mainBundle] bundleIdentifier];
+        pid_t processID = [[NSProcessInfo processInfo] processIdentifier];
+        
+        NSLog(@"[WXKBTweak] 📱 进程诊断:");
+        NSLog(@"[WXKBTweak]   - 进程名: %@", processName);
+        NSLog(@"[WXKBTweak]   - Bundle ID: %@", bundleID);
+        NSLog(@"[WXKBTweak]   - 进程ID: %d", (int)processID);
+        NSLog(@"[WXKBTweak]   - 主Bundle路径: %@", [[NSBundle mainBundle] bundlePath]);
+        
+        // ===== 验证目标进程 =====
+        NSString *targetBundleID = @"com.tencent.wetype.keyboard";
+        BOOL isTargetProcess = [bundleID isEqualToString:targetBundleID];
+        
+        NSLog(@"[WXKBTweak] 🎯 目标验证:");
+        NSLog(@"[WXKBTweak]   - 目标Bundle ID: %@", targetBundleID);
+        NSLog(@"[WXKBTweak]   - 是否匹配: %@", isTargetProcess ? @"✅ 是" : @"❌ 否");
+        
+        if (!isTargetProcess) {
+            NSLog(@"[WXKBTweak] ⚠️  警告: 当前进程不是目标进程，tweak可能不会生效");
+            NSLog(@"[WXKBTweak] 💡 建议: 检查 WXKBTweak.plist 中的 Filter 配置");
+        } else {
+            NSLog(@"[WXKBTweak] ✅ 目标进程匹配，tweak应该会生效");
+        }
+        
+        // ===== 系统环境诊断 =====
+        NSLog(@"[WXKBTweak] 🌍 系统环境:");
+        NSLog(@"[WXKBTweak]   - iOS版本: %@", [[UIDevice currentDevice] systemVersion]);
+        NSLog(@"[WXKBTweak]   - 设备型号: %@", [[UIDevice currentDevice] model]);
+        
+        // ===== MobileSubstrate 诊断 =====
+        NSLog(@"[WXKBTweak] 🔧 MobileSubstrate状态:");
+        NSLog(@"[WXKBTweak]   - 构造函数已执行 ✅");
+        NSLog(@"[WXKBTweak]   - Logos框架可用 ✅");
+        NSLog(@"[WXKBTweak]   - Objective-C运行时正常 ✅");
 
         // 加载用户配置
+        NSLog(@"[WXKBTweak] 📋 开始加载用户配置...");
         loadPreferences();
 
         // 监听配置变化
@@ -617,5 +781,9 @@ static void loadPreferences() {
             NULL,
             CFNotificationSuspensionBehaviorCoalesce
         );
+        
+        NSLog(@"[WXKBTweak] 🎉 构造函数执行完成！");
+        NSLog(@"[WXKBTweak] 💡 如果看到此日志，说明tweak已被MobileSubstrate加载");
+        NSLog(@"[WXKBTweak] ========================================");
     }
 }
