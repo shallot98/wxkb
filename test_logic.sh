@@ -76,10 +76,10 @@ echo ""
 echo "[4/5] 检查关键方法..."
 methods=(
     "didMoveToWindow"
-    "handleLanguageSwitch"
-    "performLanguageSwitchWithDirection"
-    "findLanguageSwitchButton"
-    "searchButtonInView"
+    "wxkb_handleLanguageSwitch"
+    "wxkb_performLanguageSwitchWithDirection"
+    "wxkb_setupGestureRecognizer"
+    "wxkb_findLanguageSwitchButtonRecursive"
 )
 
 for method in "${methods[@]}"; do
@@ -109,6 +109,16 @@ for framework in "${frameworks[@]}"; do
         exit 1
     fi
 done
+
+# 检查objc/runtime导入
+echo ""
+echo "[补充] 检查v3.0必要导入..."
+if grep -q "#import <objc/runtime.h>" Tweak.x; then
+    echo "  ✓ objc/runtime.h - v3.0关联对象支持"
+else
+    echo "  ✗ objc/runtime.h - 艹，缺少v3.0关键导入！"
+    exit 1
+fi
 
 # 统计代码行数
 echo ""
