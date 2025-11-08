@@ -24,10 +24,6 @@ static const void *kWXKBFeedbackViewKey = &kWXKBFeedbackViewKey;
 static const void *kWXKBInitializedKey = &kWXKBInitializedKey;
 static const void *kWXKBObserverAttachedKey = &kWXKBObserverAttachedKey;
 
-// 全局变量用于保存找到的按钮引用
-static WBLanguageSwitchButton *globalLanguageSwitchButton = nil;
-static NSLock *buttonLock = nil;
-
 // ============================================
 // 前向声明 - 微信输入法的真实类
 // ============================================
@@ -39,6 +35,10 @@ static NSLock *buttonLock = nil;
 
 @interface WBKeyFuncLangSwitch : NSObject
 @end
+
+// 全局变量用于保存找到的按钮引用
+static WBLanguageSwitchButton *globalLanguageSwitchButton = nil;
+static NSLock *buttonLock = nil;
 
 // ============================================
 // 手势识别器
