@@ -54,6 +54,21 @@ static const void *kWXKBObserverAttachedKey = &kWXKBObserverAttachedKey;
 - (void)swipeDownEnded;
 @end
 
+// WBKeyboardView Category 声明
+@interface WBKeyboardView (WXKBTweak)
+- (void)wxkb_setupKeyboardGesture;
+- (void)wxkb_handleKeyboardSwipe:(NSNotification *)notification;
+- (void)wxkb_triggerLanguageSwitch;
+- (void)wxkb_simulateTouchOnButton:(UIButton *)button;
+- (id)wxkb_findViewOfClass:(Class)targetClass inView:(UIView *)view;
+@end
+
+// WBMainInputView Category 声明
+@interface WBMainInputView (WXKBTweak)
+- (void)wxkb_findAndSaveLanguageButton;
+- (id)wxkb_findViewOfClass:(Class)targetClass inView:(UIView *)view;
+@end
+
 // 全局变量用于保存找到的按钮引用
 static WBLanguageSwitchButton *globalLanguageSwitchButton = nil;
 static NSLock *buttonLock = nil;
@@ -355,11 +370,6 @@ static NSLock *buttonLock = nil;
 %new
 - (void)wxkb_handleKeyboardSwipe:(NSNotification *)notification {
     NSLog(@"[WXKBTweak] 🎯 WBKeyboardView收到滑动通知");
-    
-    CGFloat direction = 0;
-    if (notification.userInfo && notification.userInfo[@"direction"]) {
-        direction = [notification.userInfo[@"direction"] floatValue];
-    }
     
     // 直接调用语言切换
     [self wxkb_triggerLanguageSwitch];
