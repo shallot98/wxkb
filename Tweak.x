@@ -45,7 +45,9 @@ static NSLock *buttonLock = nil;
 // ============================================
 @interface WXKBSwipeGestureRecognizer : UIPanGestureRecognizer
 @property (nonatomic, assign) CGPoint startPoint;
+@property (nonatomic, assign) NSTimeInterval startTime;
 @property (nonatomic, assign) BOOL hasTriggered;
+@property (nonatomic, assign) BOOL isSwiping;
 @property (nonatomic, weak) UIInputView *attachedView;
 @end
 
@@ -55,7 +57,9 @@ static NSLock *buttonLock = nil;
     [super touchesBegan:touches withEvent:event];
     UITouch *touch = [touches anyObject];
     self.startPoint = [touch locationInView:self.view];
+    self.startTime = [[NSDate date] timeIntervalSince1970];
     self.hasTriggered = NO;
+    self.isSwiping = NO;
     NSLog(@"[WXKBTweak] 手势开始：起点=%.0f,%.0f", self.startPoint.x, self.startPoint.y);
 }
 
@@ -69,18 +73,39 @@ static NSLock *buttonLock = nil;
 
     CGFloat verticalDistance = currentPoint.y - self.startPoint.y;
     CGFloat horizontalDistance = fabs(currentPoint.x - self.startPoint.x);
+    CGFloat totalDistance = sqrt(pow(verticalDistance, 2) + pow(horizontalDistance, 2));
+    
+    NSTimeInterval elapsedTime = [[NSDate date] timeIntervalSince1970] - self.startTime;
 
-    // 确保是垂直滑动
-    if (horizontalDistance > 30.0) return;
+    // 最小移动距离阈值（防止点击时的微小移动被识别为滑动）
+    CGFloat minMoveThreshold = 15.0;
+    
+    // 如果移动距离太小，不处理（可能是点击）
+    if (totalDistance < minMoveThreshold) {
+        return;
+    }
+    
+    // 标记为正在滑动（此时应该取消底层触摸事件）
+    if (!self.isSwiping) {
+        self.isSwiping = YES;
+        self.cancelsTouchesInView = YES;
+        NSLog(@"[WXKBTweak] 检测到滑动手势，取消底层触摸事件");
+    }
+
+    // 确保是垂直滑动（垂直距离大于水平距离）
+    if (horizontalDistance > fabs(verticalDistance)) {
+        NSLog(@"[WXKBTweak] 水平滑动，忽略");
+        return;
+    }
 
     CGFloat adjustedThreshold = swipeThreshold / swipeSensitivity;
 
-    // 检测上滑或下滑
+    // 检测上滑或下滑（垂直距离必须超过阈值）
     if (fabs(verticalDistance) > adjustedThreshold) {
         self.hasTriggered = YES;
         
-        NSLog(@"[WXKBTweak] ✅ 手势检测成功！距离=%.2f，方向=%@",
-              verticalDistance, verticalDistance < 0 ? @"上滑(English)" : @"下滑(Chinese)");
+        NSLog(@"[WXKBTweak] ✅ 滑动手势触发！距离=%.2f，耗时=%.3fs，方向=%@",
+              verticalDistance, elapsedTime, verticalDistance < 0 ? @"上滑(English)" : @"下滑(Chinese)");
 
         // 发送通知触发切换
         [[NSNotificationCenter defaultCenter] postNotificationName:@"WXKBSwitchLanguage"
@@ -91,12 +116,31 @@ static NSLock *buttonLock = nil;
         if (hapticFeedbackEnabled) {
             AudioServicesPlaySystemSound(1519);
         }
+        
+        // 强制结束手势，防止继续处理
+        self.state = UIGestureRecognizerStateEnded;
     }
+}
+
+- (void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+    [super touchesEnded:touches withEvent:event];
+    
+    // 如果没有触发滑动，说明是点击，恢复 cancelsTouchesInView
+    if (!self.hasTriggered && !self.isSwiping) {
+        NSLog(@"[WXKBTweak] 手势结束：识别为点击，不阻止底层事件");
+    }
+}
+
+- (void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+    [super touchesCancelled:touches withEvent:event];
+    NSLog(@"[WXKBTweak] 手势被取消");
 }
 
 - (void)reset {
     [super reset];
     self.hasTriggered = NO;
+    self.isSwiping = NO;
+    self.cancelsTouchesInView = NO;
     NSLog(@"[WXKBTweak] 手势重置");
 }
 
