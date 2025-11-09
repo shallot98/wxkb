@@ -1,8 +1,13 @@
 /*
- * WXKBTweak - 微信输入法增强插件 v3.0
+ * WXKBTweak - 微信输入法增强插件 v3.1
  * 功能：上下滑动切换中英文输入
- * 作者：老王（修复版 - 完全重写初始化和生命周期）
+ * 作者：老王（修复版 - 修复滑动误判和API级别触发）
  * 适配：rootless越狱 iOS 13.0+
+ * 更新：
+ *   - 修复点击被误判为滑动的问题
+ *   - 改进垂直滑动检测算法（距离、角度、时间）
+ *   - 添加WBKeyboardView hooks以更好地触发语言切换
+ *   - 使用API级别的languageSelectClicked方法和触摸模拟
  */
 
 #import <UIKit/UIKit.h>
@@ -36,6 +41,19 @@ static const void *kWXKBObserverAttachedKey = &kWXKBObserverAttachedKey;
 @interface WBKeyFuncLangSwitch : NSObject
 @end
 
+@interface WBKeyboardView : UIView
+@end
+
+@interface WBMainInputView : UIView
+@end
+
+@interface WBKeyView : UIView
+- (void)swipeUpBegan;
+- (void)swipeUpEnded;
+- (void)swipeDownBegan;
+- (void)swipeDownEnded;
+@end
+
 // 全局变量用于保存找到的按钮引用
 static WBLanguageSwitchButton *globalLanguageSwitchButton = nil;
 static NSLock *buttonLock = nil;
@@ -46,6 +64,8 @@ static NSLock *buttonLock = nil;
 @interface WXKBSwipeGestureRecognizer : UIPanGestureRecognizer
 @property (nonatomic, assign) CGPoint startPoint;
 @property (nonatomic, assign) BOOL hasTriggered;
+@property (nonatomic, assign) BOOL isSwipeDetected;
+@property (nonatomic, assign) NSTimeInterval startTime;
 @property (nonatomic, weak) UIInputView *attachedView;
 @end
 
@@ -56,6 +76,8 @@ static NSLock *buttonLock = nil;
     UITouch *touch = [touches anyObject];
     self.startPoint = [touch locationInView:self.view];
     self.hasTriggered = NO;
+    self.isSwipeDetected = NO;
+    self.startTime = [[NSDate date] timeIntervalSince1970];
     NSLog(@"[WXKBTweak] 手势开始：起点=%.0f,%.0f", self.startPoint.x, self.startPoint.y);
 }
 
@@ -69,14 +91,27 @@ static NSLock *buttonLock = nil;
 
     CGFloat verticalDistance = currentPoint.y - self.startPoint.y;
     CGFloat horizontalDistance = fabs(currentPoint.x - self.startPoint.x);
+    CGFloat totalDistance = sqrt(pow(verticalDistance, 2) + pow(horizontalDistance, 2));
 
-    // 确保是垂直滑动
-    if (horizontalDistance > 30.0) return;
+    // 防止误触：必须有一定的总移动距离才开始检测（避免轻微抖动）
+    if (totalDistance < 15.0) return;
+
+    // 标记为滑动手势（而不是点击）
+    if (totalDistance > 20.0) {
+        self.isSwipeDetected = YES;
+    }
+
+    // 确保是垂直滑动：垂直距离必须大于水平距离的2倍
+    CGFloat absVerticalDistance = fabs(verticalDistance);
+    if (absVerticalDistance < horizontalDistance * 2.0) return;
+    
+    // 水平距离不能太大（防止斜着滑）
+    if (horizontalDistance > 50.0) return;
 
     CGFloat adjustedThreshold = swipeThreshold / swipeSensitivity;
 
     // 检测上滑或下滑
-    if (fabs(verticalDistance) > adjustedThreshold) {
+    if (absVerticalDistance > adjustedThreshold) {
         self.hasTriggered = YES;
         
         NSLog(@"[WXKBTweak] ✅ 手势检测成功！距离=%.2f，方向=%@",
@@ -94,9 +129,26 @@ static NSLock *buttonLock = nil;
     }
 }
 
+- (void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+    [super touchesEnded:touches withEvent:event];
+    
+    // 计算时间和距离，进一步验证是否为点击
+    NSTimeInterval duration = [[NSDate date] timeIntervalSince1970] - self.startTime;
+    UITouch *touch = [touches anyObject];
+    CGPoint endPoint = [touch locationInView:self.view];
+    CGFloat totalDistance = sqrt(pow(endPoint.x - self.startPoint.x, 2) + pow(endPoint.y - self.startPoint.y, 2));
+    
+    // 如果时间很短(<0.2秒)且移动距离很小(<20像素)，判定为点击，不是滑动
+    if (duration < 0.2 && totalDistance < 20.0) {
+        self.isSwipeDetected = NO;
+        NSLog(@"[WXKBTweak] 检测到点击事件（非滑动）：时长=%.3fs, 距离=%.1f", duration, totalDistance);
+    }
+}
+
 - (void)reset {
     [super reset];
     self.hasTriggered = NO;
+    self.isSwipeDetected = NO;
     NSLog(@"[WXKBTweak] 手势重置");
 }
 
@@ -239,6 +291,261 @@ static NSLock *buttonLock = nil;
 
 - (void)switchToFunc {
     NSLog(@"[WXKBTweak] 🔥 WBKeyFuncLangSwitch.switchToFunc被调用");
+    %orig;
+}
+
+%end
+
+// ============================================
+// Hook WBKeyboardView - 微信键盘视图
+// ============================================
+%hook WBKeyboardView
+
+- (instancetype)initWithFrame:(CGRect)frame {
+    self = %orig;
+    if (self) {
+        NSLog(@"[WXKBTweak] ✅ WBKeyboardView初始化: frame=%@", NSStringFromCGRect(frame));
+        
+        // 为WBKeyboardView添加手势识别器（更精确的hook点）
+        if (tweakEnabled) {
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                [self wxkb_setupKeyboardGesture];
+            });
+        }
+    }
+    return self;
+}
+
+- (void)didMoveToWindow {
+    %orig;
+    if (self.window && tweakEnabled) {
+        NSLog(@"[WXKBTweak] ✅ WBKeyboardView已显示在window中");
+        [self wxkb_setupKeyboardGesture];
+    }
+}
+
+%new
+- (void)wxkb_setupKeyboardGesture {
+    // 检查是否已经添加过手势
+    NSNumber *initialized = objc_getAssociatedObject(self, kWXKBInitializedKey);
+    if (initialized && [initialized boolValue]) {
+        NSLog(@"[WXKBTweak] WBKeyboardView已经添加过手势");
+        return;
+    }
+    
+    NSLog(@"[WXKBTweak] 为WBKeyboardView添加手势识别器");
+    
+    WXKBSwipeGestureRecognizer *swipeGesture = [[WXKBSwipeGestureRecognizer alloc] initWithTarget:self action:@selector(wxkb_handleKeyboardSwipe:)];
+    swipeGesture.cancelsTouchesInView = NO;
+    swipeGesture.delaysTouchesBegan = NO;
+    
+    [self addGestureRecognizer:swipeGesture];
+    objc_setAssociatedObject(self, kWXKBSwipeGestureKey, swipeGesture, OBJC_ASSOCIATION_RETAIN);
+    objc_setAssociatedObject(self, kWXKBInitializedKey, @YES, OBJC_ASSOCIATION_RETAIN);
+    
+    // 添加通知观察器
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(wxkb_handleKeyboardSwipe:)
+                                                 name:@"WXKBSwitchLanguage"
+                                               object:nil];
+    
+    NSLog(@"[WXKBTweak] ✅ WBKeyboardView手势识别器已添加");
+}
+
+%new
+- (void)wxkb_handleKeyboardSwipe:(NSNotification *)notification {
+    NSLog(@"[WXKBTweak] 🎯 WBKeyboardView收到滑动通知");
+    
+    CGFloat direction = 0;
+    if (notification.userInfo && notification.userInfo[@"direction"]) {
+        direction = [notification.userInfo[@"direction"] floatValue];
+    }
+    
+    // 直接调用语言切换
+    [self wxkb_triggerLanguageSwitch];
+}
+
+%new
+- (void)wxkb_triggerLanguageSwitch {
+    NSLog(@"[WXKBTweak] 🔥 WBKeyboardView触发语言切换");
+    
+    // 方法1：查找WBLanguageSwitchButton
+    [buttonLock lock];
+    WBLanguageSwitchButton *button = globalLanguageSwitchButton;
+    [buttonLock unlock];
+    
+    if (button && button.window) {
+        NSLog(@"[WXKBTweak] ✅ 使用全局按钮实例");
+        
+        // 优先调用languageSelectClicked方法
+        if ([button respondsToSelector:@selector(languageSelectClicked)]) {
+            NSLog(@"[WXKBTweak] ✅ 调用languageSelectClicked");
+            #pragma clang diagnostic push
+            #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+            [button performSelector:@selector(languageSelectClicked)];
+            #pragma clang diagnostic pop
+            return;
+        }
+        
+        // 备用方案：模拟真实的触摸事件
+        NSLog(@"[WXKBTweak] ⚠️ 使用模拟触摸事件");
+        [self wxkb_simulateTouchOnButton:button];
+        return;
+    }
+    
+    // 方法2：在当前视图中查找按钮
+    NSLog(@"[WXKBTweak] 🔍 在WBKeyboardView中查找语言切换按钮");
+    Class WBLanguageSwitchButtonClass = NSClassFromString(@"WBLanguageSwitchButton");
+    if (WBLanguageSwitchButtonClass) {
+        WBLanguageSwitchButton *foundButton = [self wxkb_findViewOfClass:WBLanguageSwitchButtonClass inView:self];
+        if (foundButton) {
+            NSLog(@"[WXKBTweak] ✅ 找到按钮！");
+            
+            // 保存到全局变量
+            [buttonLock lock];
+            globalLanguageSwitchButton = foundButton;
+            [buttonLock unlock];
+            
+            // 调用切换方法
+            if ([foundButton respondsToSelector:@selector(languageSelectClicked)]) {
+                #pragma clang diagnostic push
+                #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+                [foundButton performSelector:@selector(languageSelectClicked)];
+                #pragma clang diagnostic pop
+            } else {
+                [self wxkb_simulateTouchOnButton:foundButton];
+            }
+            return;
+        }
+    }
+    
+    NSLog(@"[WXKBTweak] ⚠️ 在WBKeyboardView中未找到语言切换按钮");
+}
+
+%new
+- (void)wxkb_simulateTouchOnButton:(UIButton *)button {
+    NSLog(@"[WXKBTweak] 模拟触摸事件在按钮上");
+    
+    // 方法1: 使用UIControl的方法发送所有触摸事件
+    [button sendActionsForControlEvents:UIControlEventTouchDown];
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.05 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [button sendActionsForControlEvents:UIControlEventTouchUpInside];
+    });
+    
+    // 方法2: 如果方法1不工作，尝试直接操作
+    if ([button respondsToSelector:@selector(setHighlighted:)]) {
+        [button setHighlighted:YES];
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.05 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [button setHighlighted:NO];
+        });
+    }
+}
+
+%new
+- (id)wxkb_findViewOfClass:(Class)targetClass inView:(UIView *)view {
+    if ([view isKindOfClass:targetClass]) {
+        return view;
+    }
+    
+    for (UIView *subview in view.subviews) {
+        id found = [self wxkb_findViewOfClass:targetClass inView:subview];
+        if (found) return found;
+    }
+    
+    return nil;
+}
+
+- (void)dealloc {
+    NSNumber *initialized = objc_getAssociatedObject(self, kWXKBInitializedKey);
+    if (initialized && [initialized boolValue]) {
+        [[NSNotificationCenter defaultCenter] removeObserver:self];
+        NSLog(@"[WXKBTweak] WBKeyboardView通知观察器已移除");
+    }
+    %orig;
+}
+
+%end
+
+// ============================================
+// Hook WBMainInputView - 微信主输入视图
+// ============================================
+%hook WBMainInputView
+
+- (instancetype)initWithFrame:(CGRect)frame {
+    self = %orig;
+    if (self) {
+        NSLog(@"[WXKBTweak] ✅ WBMainInputView初始化: frame=%@", NSStringFromCGRect(frame));
+    }
+    return self;
+}
+
+- (void)didMoveToWindow {
+    %orig;
+    if (self.window) {
+        NSLog(@"[WXKBTweak] ✅ WBMainInputView已显示在window中");
+        
+        // 查找并保存语言切换按钮
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [self wxkb_findAndSaveLanguageButton];
+        });
+    }
+}
+
+%new
+- (void)wxkb_findAndSaveLanguageButton {
+    Class WBLanguageSwitchButtonClass = NSClassFromString(@"WBLanguageSwitchButton");
+    if (WBLanguageSwitchButtonClass) {
+        WBLanguageSwitchButton *foundButton = [self wxkb_findViewOfClass:WBLanguageSwitchButtonClass inView:self];
+        if (foundButton) {
+            [buttonLock lock];
+            globalLanguageSwitchButton = foundButton;
+            [buttonLock unlock];
+            NSLog(@"[WXKBTweak] ✅ 在WBMainInputView中找到并保存了语言切换按钮");
+        }
+    }
+}
+
+%new
+- (id)wxkb_findViewOfClass:(Class)targetClass inView:(UIView *)view {
+    if ([view isKindOfClass:targetClass]) {
+        return view;
+    }
+    
+    for (UIView *subview in view.subviews) {
+        id found = [self wxkb_findViewOfClass:targetClass inView:subview];
+        if (found) return found;
+    }
+    
+    return nil;
+}
+
+%end
+
+// ============================================
+// Hook WBKeyView - 微信按键视图（如果存在）
+// ============================================
+%hook WBKeyView
+
+// 根据逆向报告，WBKeyView有内置的滑动检测方法
+// 我们可以拦截这些方法来诊断问题
+
+- (void)swipeUpBegan {
+    NSLog(@"[WXKBTweak] 🔥 WBKeyView.swipeUpBegan 被调用（WeChat原生）");
+    %orig;
+}
+
+- (void)swipeUpEnded {
+    NSLog(@"[WXKBTweak] 🔥 WBKeyView.swipeUpEnded 被调用（WeChat原生）");
+    %orig;
+}
+
+- (void)swipeDownBegan {
+    NSLog(@"[WXKBTweak] 🔥 WBKeyView.swipeDownBegan 被调用（WeChat原生）");
+    %orig;
+}
+
+- (void)swipeDownEnded {
+    NSLog(@"[WXKBTweak] 🔥 WBKeyView.swipeDownEnded 被调用（WeChat原生）");
     %orig;
 }
 
@@ -636,8 +943,8 @@ static void loadPreferences() {
 %ctor {
     @autoreleasepool {
         NSLog(@"[WXKBTweak] ========================================");
-        NSLog(@"[WXKBTweak] WXKBTweak v3.0 已加载");
-        NSLog(@"[WXKBTweak] 修复版本：完整的生命周期管理");
+        NSLog(@"[WXKBTweak] WXKBTweak v3.1 已加载");
+        NSLog(@"[WXKBTweak] 修复版本：滑动误判修复 + API级别触发");
         NSLog(@"[WXKBTweak] ========================================");
 
         // 初始化锁
